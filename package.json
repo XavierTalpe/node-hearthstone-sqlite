@@ -1,0 +1,20 @@
+{
+  "name": "node-hearthstone-sqlite",
+  "version": "0.0.0",
+  "description": "Package the Hearthstone cards into a SQLite database.",
+  "main": "generate_db.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "Hearthstone",
+    "JSON",
+    "SQLite"
+  ],
+  "author": "Xavier Talpe",
+  "license": "ISC",
+  "dependencies": {
+    "async": "^0.9.0",
+    "sqlite3": "^2.2.3"
+  }
+}
