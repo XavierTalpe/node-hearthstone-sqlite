@@ -4,7 +4,9 @@ var SQLite3 = require( 'sqlite3' ).verbose();
 var FileSystem = require( 'fs' );
 var EasyImg = require( 'easyimage' );
 
-var DB_FILE_NAME = 'out/hearthstone-v1.0.sqlite';
+var TARGET_DIR = 'out/';
+var TEMP_DIR = TARGET_DIR + 'tmp/';
+var DB_FILE_NAME = TARGET_DIR + 'hearthstone-v1.0.sqlite';
 
 Async.waterfall( [
                    function ( callback ) {
@@ -75,24 +77,54 @@ function writeToDatabase( filename, cards ) {
   var basePath = '/images/hearthstone/cards/enus/original/';
 
   cards.forEach( function ( card ) {
-    if ( card.type == 'Enchantment' || card.type == 'Hero' ) {
+    if ( card.type == 'Enchantment' || card.type == 'Hero' || card.type == 'Hero Power' ) {
       return;
     }
 
     nbCardsToInsert++;
 
-    var path = basePath + card.id + '.png';
-    downloadBinaryFile( host, path, function ( error, cardImage ) {
-      if ( error ) {
-        console.log( error );
-        console.log( JSON.stringify( card ) );
-      }
-      else {
-        insertCard( card, cardImage, database );
-      }
+    Async.waterfall( [
+                       function ( callback ) {
+                         var sourceFilename = card.id + '.png';
+                         var path = basePath + sourceFilename;
 
-      closeDatabaseIfDone();
-    } );
+                         downloadFile( host, path, callback );
+                       }                                         ,
+                       function ( imageData, callback ) {
+                         var targetFilename = card.id + '.png';
+
+                         writeBinaryFile( TEMP_DIR + targetFilename, imageData, callback )
+                       },
+                       function ( sourceFilename, callback ) {
+                         var targetFilename = sourceFilename.replace( '.png', '.jpg' );
+
+                         EasyImg.crop( {
+                                         src: sourceFilename, dst: targetFilename,
+                                         cropwidth: 290, cropheight: 410,
+                                         gravity: 'North',
+                                         x: 5, y: 32
+                                       },
+                                       function ( error ) {
+                                         callback( error, targetFilename );
+                                       } );
+                       },
+                       function ( sourceFilename, callback ) {
+                         FileSystem.readFile( sourceFilename, callback );
+                       },
+                       function ( imageData, callback ) {
+                         insertCard( card, imageData, database );
+
+                         callback( null );
+                       }
+                     ],
+                     function ( error ) {
+                       if ( error ) {
+                         console.log( error );
+                         console.log( JSON.stringify( card ) );
+                       }
+
+                       closeDatabaseIfDone();
+                     } );
   } );
 }
 
@@ -138,7 +170,7 @@ function insertCard( element, cardImage, database ) {
   database.run( "INSERT INTO cards VALUES (NULL, ?,?,?,?,?,?,?,?,?,?,?)", name, cost, attack, health, abilities, rarity, type, race, clazz, game_id, cardImage );
 }
 
-function downloadBinaryFile( host, path, callback ) {
+function downloadFile( host, path, callback ) {
   var remoteOptions = {
     hostname: host,
     port: 80,
@@ -173,6 +205,6 @@ function writeBinaryFile( filename, data, callback ) {
       callback( err );
     }
 
-    callback( null );
+    callback( null, filename );
   } );
 }
