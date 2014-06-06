@@ -57,6 +57,41 @@ function downloadCardsAsJson( remoteOptions, callback ) {
 }
 
 function writeToDatabase( filename, cards ) {
+  var database = initDatabase( filename );
+
+  var nbCardsToInsert = 0;
+  var nbCardsInserted = 0;
+
+  function closeDatabaseIfDone() {
+    nbCardsInserted++;
+
+    if ( nbCardsInserted == nbCardsToInsert ) {
+      database.close();
+    }
+  }
+
+  cards.forEach( function ( card ) {
+    if ( card.type == 'Enchantment' || card.type == 'Hero' ) {
+      return;
+    }
+
+    nbCardsToInsert++;
+
+    getCardImage( card.id, function ( error, cardImage ) {
+      if ( error ) {
+        console.log( error );
+        console.log( JSON.stringify( card ) );
+      }
+      else {
+        insertCard( card, cardImage, database );
+      }
+
+      closeDatabaseIfDone();
+    } );
+  } );
+}
+
+function initDatabase( filename ) {
   var database = new SQLite3.Database( filename );
 
   database.serialize( function () {
@@ -72,37 +107,57 @@ function writeToDatabase( filename, cards ) {
                   "race TEXT," +
                   "class TEXT," +
                   "game_id TEXT NOT NULL," +
-                  "card BLOB" +
+                  "card BLOB NOT NULL" +
                   ")" );
-
-    var sqlStatement = database.prepare( "INSERT INTO cards VALUES (NULL, ?,?,?,?,?,?,?,?,?,?,?)" );
-
-    cards.forEach( function ( element ) {
-      if ( element.type == 'Enchantment' || element.type == 'Hero' ) {
-        return;
-      }
-
-      var name = element.name;
-      var cost = element.cost;
-      var attack = element.attack;
-      var health = element.health;
-      var abilities = element.mechanics;
-      var rarity = element.rarity;
-      var type = element.type;
-      var race = element.race;
-      var clazz = element.playerClass;
-      var game_id = element.id;
-      var card = null;
-
-      if ( cost == undefined ) { // Fix for 'The Coin'.
-        cost = 0;
-      }
-
-      sqlStatement.run( name, cost, attack, health, abilities, rarity, type, race, clazz, game_id, card );
-    } );
-
-    sqlStatement.finalize();
   } );
 
-  database.close();
+  return database;
+}
+
+function insertCard( element, cardImage, database ) {
+  var name = element.name;
+  var cost = element.cost;
+  if ( cost == undefined ) { // Fix for 'The Coin'.
+    cost = 0;
+  }
+
+  var attack = element.attack;
+  var health = element.health;
+  var abilities = element.mechanics ? element.mechanics.join() : null;
+  var rarity = element.rarity;
+  var type = element.type;
+  var race = element.race;
+  var clazz = element.playerClass;
+  var game_id = element.id;
+
+  database.run( "INSERT INTO cards VALUES (NULL, ?,?,?,?,?,?,?,?,?,?,?)", name, cost, attack, health, abilities, rarity, type, race, clazz, game_id, cardImage );
+}
+
+function getCardImage( card_id, callback ) {
+  var remoteOptions = {
+    hostname: 'wow.zamimg.com',
+    port: 80,
+    path: '/images/hearthstone/cards/enus/original/' + card_id + '.png',
+    method: 'GET',
+    encoding: null
+  };
+
+  var request = Http.request( remoteOptions, function ( response ) {
+    var imageData = '';
+
+    response.setEncoding( 'binary' );
+    response.on( 'data', function ( chunck ) {
+      imageData += chunck;
+    } );
+
+    response.on( 'end', function () {
+      callback( null, imageData );
+    } )
+  } );
+
+  request.on( 'error', function ( error ) {
+    callback( error, null );
+  } );
+
+  request.end();
 }
