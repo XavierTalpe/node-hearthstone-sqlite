@@ -2,7 +2,7 @@
   "name": "node-hearthstone-sqlite",
   "version": "0.0.0",
   "description": "Package the Hearthstone cards into a SQLite database.",
-  "main": "generate_db.js",
+  "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
