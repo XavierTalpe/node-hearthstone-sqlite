@@ -2,6 +2,7 @@ var Async = require( 'async' );
 var Http = require( 'http' );
 var SQLite3 = require( 'sqlite3' ).verbose();
 var FileSystem = require( 'fs' );
+var EasyImg = require( 'easyimage' );
 
 var DB_FILE_NAME = 'out/hearthstone-v1.0.sqlite';
 
@@ -70,6 +71,9 @@ function writeToDatabase( filename, cards ) {
     }
   }
 
+  var host = 'wow.zamimg.com';
+  var basePath = '/images/hearthstone/cards/enus/original/';
+
   cards.forEach( function ( card ) {
     if ( card.type == 'Enchantment' || card.type == 'Hero' ) {
       return;
@@ -77,7 +81,8 @@ function writeToDatabase( filename, cards ) {
 
     nbCardsToInsert++;
 
-    getCardImage( card.id, function ( error, cardImage ) {
+    var path = basePath + card.id + '.png';
+    downloadBinaryFile( host, path, function ( error, cardImage ) {
       if ( error ) {
         console.log( error );
         console.log( JSON.stringify( card ) );
@@ -133,25 +138,25 @@ function insertCard( element, cardImage, database ) {
   database.run( "INSERT INTO cards VALUES (NULL, ?,?,?,?,?,?,?,?,?,?,?)", name, cost, attack, health, abilities, rarity, type, race, clazz, game_id, cardImage );
 }
 
-function getCardImage( card_id, callback ) {
+function downloadBinaryFile( host, path, callback ) {
   var remoteOptions = {
-    hostname: 'wow.zamimg.com',
+    hostname: host,
     port: 80,
-    path: '/images/hearthstone/cards/enus/original/' + card_id + '.png',
+    path: path,
     method: 'GET',
     encoding: null
   };
 
   var request = Http.request( remoteOptions, function ( response ) {
-    var imageData = '';
+    var binaryData = '';
 
     response.setEncoding( 'binary' );
     response.on( 'data', function ( chunck ) {
-      imageData += chunck;
+      binaryData += chunck;
     } );
 
     response.on( 'end', function () {
-      callback( null, imageData );
+      callback( null, binaryData );
     } )
   } );
 
@@ -160,4 +165,14 @@ function getCardImage( card_id, callback ) {
   } );
 
   request.end();
+}
+
+function writeBinaryFile( filename, data, callback ) {
+  FileSystem.writeFile( filename, data, 'binary', function ( err ) {
+    if ( err ) {
+      callback( err );
+    }
+
+    callback( null );
+  } );
 }
