@@ -3,12 +3,26 @@ var Http = require( 'http' );
 var SQLite3 = require( 'sqlite3' ).verbose();
 var FileSystem = require( 'fs' );
 var EasyImg = require( 'easyimage' );
+var rmdir = require( 'rimraf' );
+var mkdirp = require( 'mkdirp' );
 
-var TARGET_DIR = 'out/';
+var TARGET_DIR = 'target/';
 var TEMP_DIR = TARGET_DIR + 'tmp/';
 var DB_FILE_NAME = TARGET_DIR + 'hearthstone-v1.0.sqlite';
 
 Async.waterfall( [
+                   function ( callback ) {
+                     rmdir( TARGET_DIR, function ( error ) {
+                       if ( error ) {
+                         callback( error );
+                       }
+                       else {
+                         mkdirp( TEMP_DIR, function ( error2 ) {
+                           callback( error2 );
+                         } );
+                       }
+                     } );
+                   },
                    function ( callback ) {
                      var remoteOptions = {
                        hostname: 'hearthstonejson.com',
@@ -22,19 +36,12 @@ Async.waterfall( [
                    function ( allCards, callback ) {
                      var basicCards = allCards.Basic;
                      var expertCards = allCards.Expert;
-
                      var cards = basicCards.concat( expertCards );
 
                      callback( null, cards, callback );
                    },
                    function ( cards, callback ) {
-                     FileSystem.unlink( DB_FILE_NAME, function ( error ) {
-                       if ( error ) {
-                         // File doesn't exist, skip error.
-                       }
-
-                       writeToDatabase( DB_FILE_NAME, cards );
-                     } );
+                     writeToDatabase( DB_FILE_NAME, cards );
                    }
                  ] );
 
@@ -93,7 +100,7 @@ function writeToDatabase( filename, cards ) {
                        function ( imageData, callback ) {
                          var targetFilename = card.id + '.png';
 
-                         writeBinaryFile( TEMP_DIR + targetFilename, imageData, callback )
+                         writeFileToDisk( TEMP_DIR + targetFilename, imageData, callback )
                        },
                        function ( sourceFilename, callback ) {
                          var targetFilename = sourceFilename.replace( '.png', '.jpg' );
@@ -105,7 +112,14 @@ function writeToDatabase( filename, cards ) {
                                          x: 5, y: 32
                                        },
                                        function ( error ) {
-                                         callback( error, targetFilename );
+                                         if ( error ) {
+                                           callback( error );
+                                         }
+                                         else {
+                                           FileSystem.unlink( sourceFilename, function ( error ) {
+                                             callback( error, targetFilename );
+                                           } );
+                                         }
                                        } );
                        },
                        function ( sourceFilename, callback ) {
@@ -199,7 +213,7 @@ function downloadFile( host, path, callback ) {
   request.end();
 }
 
-function writeBinaryFile( filename, data, callback ) {
+function writeFileToDisk( filename, data, callback ) {
   FileSystem.writeFile( filename, data, 'binary', function ( err ) {
     if ( err ) {
       callback( err );
